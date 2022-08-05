@@ -2,37 +2,39 @@ import assert from "assert"
 import * as marshal from "./marshal"
 
 export class XcmDestination {
-  private _paraId!: number | undefined | null
-  private _id!: Uint8Array | undefined | null
+  private _paraId!: number
+  private _id!: string
 
   constructor(props?: Partial<Omit<XcmDestination, 'toJSON'>>, json?: any) {
     Object.assign(this, props)
     if (json != null) {
-      this._paraId = json.paraId == null ? undefined : marshal.int.fromJSON(json.paraId)
-      this._id = json.id == null ? undefined : marshal.bytes.fromJSON(json.id)
+      this._paraId = marshal.int.fromJSON(json.paraId)
+      this._id = marshal.string.fromJSON(json.id)
     }
   }
 
-  get paraId(): number | undefined | null {
+  get paraId(): number {
+    assert(this._paraId != null, 'uninitialized access')
     return this._paraId
   }
 
-  set paraId(value: number | undefined | null) {
+  set paraId(value: number) {
     this._paraId = value
   }
 
-  get id(): Uint8Array | undefined | null {
+  get id(): string {
+    assert(this._id != null, 'uninitialized access')
     return this._id
   }
 
-  set id(value: Uint8Array | undefined | null) {
+  set id(value: string) {
     this._id = value
   }
 
   toJSON(): object {
     return {
       paraId: this.paraId,
-      id: this.id == null ? undefined : marshal.bytes.toJSON(this.id),
+      id: this.id,
     }
   }
 }

@@ -2,22 +2,23 @@ import assert from "assert"
 import * as marshal from "./marshal"
 
 export class XcmToken {
-  private _amount!: bigint | undefined | null
+  private _amount!: bigint
   private _token!: string
 
   constructor(props?: Partial<Omit<XcmToken, 'toJSON'>>, json?: any) {
     Object.assign(this, props)
     if (json != null) {
-      this._amount = json.amount == null ? undefined : marshal.bigint.fromJSON(json.amount)
+      this._amount = marshal.bigint.fromJSON(json.amount)
       this._token = marshal.string.fromJSON(json.token)
     }
   }
 
-  get amount(): bigint | undefined | null {
+  get amount(): bigint {
+    assert(this._amount != null, 'uninitialized access')
     return this._amount
   }
 
-  set amount(value: bigint | undefined | null) {
+  set amount(value: bigint) {
     this._amount = value
   }
 
@@ -32,7 +33,7 @@ export class XcmToken {
 
   toJSON(): object {
     return {
-      amount: this.amount == null ? undefined : marshal.bigint.toJSON(this.amount),
+      amount: marshal.bigint.toJSON(this.amount),
       token: this.token,
     }
   }

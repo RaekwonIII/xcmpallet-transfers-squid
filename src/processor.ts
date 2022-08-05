@@ -58,9 +58,7 @@ processor.run(new TypeormDatabase(), async ctx => {
             timestamp,
             extrinsicHash,
             from,
-            to: new XcmDestination({
-                ...to
-            }),
+            to: new XcmDestination(to),
             assets: assets.map(a => new XcmToken({...a})),
             fee
         }))
@@ -124,122 +122,47 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
     return transfers
 }
 
-function getBeneficiare(value: XcmTransferEventData['beneficiary']) {
-    const version = value.__kind
-
-    switch (version) {
-        case 'V0': {
-            const location = value.value
-            assert(location.__kind === 'X1', `Unsupported location variant ${location.__kind}`)
-
-            const junction = location.value
-
-            switch (junction.__kind) {
-                case 'AccountId32':
-                    return junction.id
-                case 'AccountKey20':
-                    return junction.key
-                default:
-                    throw new Error(`Unsupported junction variant ${junction.__kind}`)
-            }
-        }
-        case 'V1': {
-            const location = value.value
-            assert(location.interior.__kind === 'X1', `Unsupported location interior variant ${location.interior.__kind}`)
-
-            const junction = location.interior.value
-
-            switch (junction.__kind) {
-                case 'AccountId32':
-                    return junction.id
-                case 'AccountKey20':
-                    return junction.key
-                default:
-                    throw new Error(`Unsupported junction variant ${junction.__kind}`)
-            }
-        }
-        case 'V2': {
-            const location = value.value
-            assert(location.interior.__kind === 'X1', `Unsupported location interior variant ${location.interior.__kind}`)
-
-            const junction = location.interior.value
-
-            switch (junction.__kind) {
-                case 'AccountId32':
-                    return junction.id
-                case 'AccountKey20':
-                    return junction.key
-                default:
-                    throw new Error(`Unsupported junction variant ${junction.__kind}`)
-            }
-        }
+function getBeneficiare(value: any) {
+    switch (value.__kind) {
+        case 'V0':
+            return getAccountId(value.value)
+        case 'V1':
+        case 'V2':
+            return getAccountId(value.value.interior)
         default:
-            throw new Error()
+            throw new Error(`Unsupported beneficiare version: ${value.__kind}`)
     }
 }
 
-function getDestination(value: XcmTransferEventData['dest']) {
+function getAssets(value: any): {id: null, amount: bigint}[] {
     const version = value.__kind
 
     switch (version) {
         case 'V0': {
-            const location = value.value
-            assert(location.__kind === 'X1', `Unsupported location variant ${location.__kind}`)
-
-            const junction = location.value
-            assert(junction.__kind === 'Parachain', `Unsupported junction variant ${junction.__kind}`)
-
-            return junction.value
-        }
-        case 'V1': {
-            const location = value.value
-            assert(location.interior.__kind === 'X1', `Unsupported location interior variant ${location.interior.__kind}`)
-
-            const junction = location.interior.value
-            assert(junction.__kind === 'Parachain', `Unsupported junction variant ${junction.__kind}`)
-
-            return junction.value
-        }
-        case 'V2': {
-            const location = value.value
-            assert(location.interior.__kind === 'X1', `Unsupported location interior variant ${location.interior.__kind}`)
-
-            const junction = location.interior.value
-            assert(junction.__kind === 'Parachain', `Unsupported junction variant ${junction.__kind}`)
-
-            return junction.value
-        }
-        default:
-            throw new Error()
-    }
-}
-
-function getAssets(value: XcmTransferEventData['assets']) {
-    const version = value.__kind
-
-    switch (version) {
-        case 'V0': {
-            return value.value.map((asset) => {
+            return value.value.map((asset: any) => {
                 assert(asset.__kind === 'ConcreteFungible', `Unsupported asset variant ${asset.__kind}`)
 
-                if (asset.id.__kind === 'X1') {
-                    assert(asset.id.value.__kind === 'Parent', `Unsupported asset id variant ${asset.id.value.__kind}`)
-                    return {
-                        id: null,
-                        amount: asset.amount
-                    }
-                } else {
-                    assert(asset.id.__kind === 'Null' || asset.id.__kind === 'Here', `Unsupported asset id variant ${asset.id.__kind}`)
-                    return {
-                        id: null,
-                        amount: asset.amount
-                    }
+                switch (asset.id.__kind) {
+                    case 'X1':
+                        assert(asset.id.value.__kind === 'Parent', `Unsupported asset id variant ${asset.id.value.__kind}`)
+                        return {
+                            id: null,
+                            amount: asset.amount
+                        }
+                    case 'Here':
+                    case 'Null':
+                        return {
+                            id: null,
+                            amount: asset.amount
+                        }
+                    default:
+                        throw new Error(`Unsupported asset id variant ${asset.id.__kind}`)
                 }
-
             })
         }
-        case 'V1': {
-            return value.value.map((asset) => {
+        case 'V1':
+        case 'V2': {
+            return value.value.map((asset: any) => {
                 assert(asset.id.__kind === 'Concrete', `Unsupported asset variant ${asset.id.__kind}`)
 
                 assert(asset.id.value.interior.__kind === 'Here', `Unsupported asset id variant ${asset.id.value.interior.__kind}`)
@@ -249,21 +172,8 @@ function getAssets(value: XcmTransferEventData['assets']) {
                 assert(fun.__kind === 'Fungible', `Unsupported asset fungibility variant ${fun.__kind}`)
 
                 return {
-                    amount: fun.value as bigint
-                }
-            })
-        }
-        case 'V2': {
-            return value.value.map((asset) => {
-                assert(asset.id.__kind === 'Concrete', `Unsupported asset variant ${asset.id.__kind}`)
-
-                assert(asset.id.value.interior.__kind === 'Here', `Unsupported asset id variant ${asset.id.value.interior.__kind}`)
-
-                assert(asset.fungibility.__kind === 'Fungible', `Unsupported asset fungibility variant ${asset.fungibility.__kind}`)
-
-
-                return {
-                    amount: asset.fungibility.value as bigint
+                    id: null,
+                    amount: fun.value
                 }
             })
         }
@@ -280,7 +190,7 @@ interface XcmTransferData {
     from: string
     to: {
         paraId: number,
-        id: Uint8Array
+        id: string
     }
     assets: {
         token: string,
@@ -310,7 +220,7 @@ function getXcmTeleportAssets(ctx: Ctx, call: Call) {
     }
 }
 
-function getReservedTeleportAssets(ctx: Ctx, call: Call) {
+function getReservedTeleportAssets(ctx: Ctx, call: Call): XcmTransferEventData {
     const data = new XcmPalletReserveTransferAssetsCall(ctx, call)
 
     if (data.isV9030) {
@@ -338,4 +248,46 @@ function getAccount(m: Map<string, Account>, id: string): Account {
         m.set(id, acc)
     }
     return acc
+}
+
+export function getDestination(value: any) {
+    switch (value.__kind) {
+        case 'V0':
+            return getParachainId(value.value)
+        case 'V1':
+        case 'V2':
+            return getParachainId(value.value.interior)
+        default:
+            throw new Error(`Unsupported destination version: ${value.__kind}`)
+    }
+}
+
+function getAccountId(value: any): string {
+    switch (value.__kind) {
+        case 'X1':
+            switch (value.value.__kind) {
+                case 'AccountId32':
+                    return toHex(value.value.id)
+                case 'AccountKey20':
+                    return toHex(value.value.key)
+                default:
+                    throw new Error(`Unsupported account id variant: ${value.value.__kind}`)
+            }
+        default:
+            throw new Error(`Unsupported account location variant: ${value.__kind}`)
+    }
+}
+
+function getParachainId(value: any): number {
+    switch (value.__kind) {
+        case 'X1':
+            switch (value.value.__kind) {
+                case 'Parachain':
+                    return value.value.value
+                default:
+                    throw new Error(`Unsupported parachain id variant: ${value.value.__kind}`)
+            }
+        default:
+            throw new Error(`Unsupported parachain location variant: ${value.__kind}`)
+    }
 }
