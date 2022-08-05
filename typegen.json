@@ -6,7 +6,9 @@
   ],
   "calls": [ 
     "XcmPallet.teleport_assets",
-    "XcmPallet.reserve_transfer_assets"
+    "XcmPallet.reserve_transfer_assets",
+    "XcmPallet.limited_teleport_assets",
+    "XcmPallet.limited_reserve_transfer_assets"
   ],
   "storage": [
   ]

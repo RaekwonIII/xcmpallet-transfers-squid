@@ -5,7 +5,7 @@ import {Store, TypeormDatabase} from "@subsquid/typeorm-store"
 import assert from "assert"
 import {In} from "typeorm"
 import {Account, Transfer, XcmDestination, XcmToken} from "./model"
-import {XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
+import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {BalancesTransferEvent} from "./types/events"
 import {Call} from "./types/support"
 
@@ -22,6 +22,18 @@ const processor = new SubstrateBatchProcessor()
         }
     })
     .addCall('XcmPallet.reserve_transfer_assets', {
+        data: {
+            call: true,
+            extrinsic: true
+        }
+    })
+    .addCall('XcmPallet.limited_teleport_assets', {
+        data: {
+            call: true,
+            extrinsic: true
+        }
+    })
+    .addCall('XcmPallet.limited_reserve_transfer_assets', {
         data: {
             call: true,
             extrinsic: true
@@ -77,8 +89,14 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
                 case 'XcmPallet.teleport_assets':
                     data = getXcmTeleportAssets(ctx, item.call)
                     break
+                case 'XcmPallet.limited_teleport_assets':
+                    data = getXcmLimitedTeleportAssets(ctx, item.call)
+                    break
                 case 'XcmPallet.reserve_transfer_assets':
                     data = getReservedTeleportAssets(ctx, item.call)
+                    break
+                case 'XcmPallet.limited_reserve_transfer_assets':
+                    data = getLimitedReservedTeleportAssets(ctx, item.call)
                     break
                 default:
                     continue
@@ -220,6 +238,16 @@ function getXcmTeleportAssets(ctx: Ctx, call: Call) {
     }
 }
 
+function getXcmLimitedTeleportAssets(ctx: Ctx, call: Call) {
+    const data = new XcmPalletLimitedTeleportAssetsCall(ctx, call)
+
+    if (data.isV9122) {
+        return data.asV9122
+    } else {
+        throw new Error()
+    }
+}
+
 function getReservedTeleportAssets(ctx: Ctx, call: Call): XcmTransferEventData {
     const data = new XcmPalletReserveTransferAssetsCall(ctx, call)
 
@@ -239,6 +267,15 @@ function getReservedTeleportAssets(ctx: Ctx, call: Call): XcmTransferEventData {
     }
 }
 
+function getLimitedReservedTeleportAssets(ctx: Ctx, call: Call) {
+    const data = new XcmPalletLimitedReserveTransferAssetsCall(ctx, call)
+
+    if (data.isV9122) {
+        return data.asV9122
+    } else {
+        throw new Error()
+    }
+}
 
 function getAccount(m: Map<string, Account>, id: string): Account {
     let acc = m.get(id)
