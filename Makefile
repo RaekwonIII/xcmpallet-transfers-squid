@@ -1,6 +1,8 @@
 process: migrate
 	@node -r dotenv/config lib/processor.js
 
+reset: down up 
+	@rm -rf assets/xcm_transfers.csv
 
 build:
 	@npm run build

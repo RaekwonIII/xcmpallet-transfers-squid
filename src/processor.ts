@@ -2,13 +2,25 @@ import {lookupArchive} from "@subsquid/archive-registry"
 import * as ss58 from "@subsquid/ss58"
 import {BatchContext, BatchProcessorItem, decodeHex, SubstrateBatchProcessor, toHex} from "@subsquid/substrate-processor"
 import {Store, TypeormDatabase} from "@subsquid/typeorm-store"
+import {createLogger} from "@subsquid/logger"
+import {Big} from 'big.js'
 import assert from "assert"
-import {In} from "typeorm"
-import {Account, Transfer, XcmDestination, XcmToken} from "./model"
+import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
-import {BalancesTransferEvent} from "./types/events"
 import {Call} from "./types/support"
 
+const log = createLogger("sqd:processor")
+const CSV_PATH = `${__dirname}/../assets/xcm_transfers.csv`
+
+if (!fs.existsSync(CSV_PATH)) {
+    log.info(`Writing to ${CSV_PATH}`)
+    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'w', encoding: "utf-8" })
+    csvWriter.write(`extrinsicId,block,timestamp,txHash,from,to,destParaId,token,amount,fee\n`)
+    csvWriter.close()
+}
+
+const EVM_PARA_IDS = [2023]
+const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
 
 const processor = new SubstrateBatchProcessor()
     .setBatchSize(500)
@@ -46,38 +58,25 @@ type Ctx = BatchContext<Store, Item>
 
 
 processor.run(new TypeormDatabase(), async ctx => {
+    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'a', encoding: "utf-8" })
+    
     let transfersData = getTransfers(ctx)
+    const toKSMAmount = (planks: bigint | number, precision = 5) =>
+        new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
 
-    let accountIds = new Set<string>()
-    for (let t of transfersData) {
-        accountIds.add(t.from)
+
+    const writeXCMTransferData = (t: XcmTransferData) => {
+        for (let a of t.assets) {
+            csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},${t.extrinsicHash},`+
+                `${t.from},${t.to.address},${t.to.paraId},${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
+        }
     }
 
-    let accounts = await ctx.store.findBy(Account, {id: In([...accountIds])}).then(accounts => {
-        return new Map(accounts.map(a => [a.id, a]))
-    })
-
-    let transfers: Transfer[] = []
-
     for (let t of transfersData) {
-        let {id, blockNumber, timestamp, extrinsicHash, assets, fee, to} = t
-
-        let from = getAccount(accounts, t.from)
-
-        transfers.push(new Transfer({
-            id,
-            blockNumber,
-            timestamp,
-            extrinsicHash,
-            from,
-            to: new XcmDestination(to),
-            assets: assets.map(a => new XcmToken({...a})),
-            fee
-        }))
+        writeXCMTransferData(t)
     }
 
-    await ctx.store.save(Array.from(accounts.values()))
-    await ctx.store.insert(transfers)
+    csvWriter.close()
 })
 
 function getTransfers(ctx: Ctx): XcmTransferData[] {
@@ -107,7 +106,7 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
 
             try {
                 const dest = getDestination(data.dest)
-                const beneficiary = getBeneficiare(data.beneficiary)
+                const beneficiary = getBeneficiary(data.beneficiary)
                 const assets = getAssets(data.assets)
 
                 const from = (
@@ -115,7 +114,8 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
                         ? signature.address.value
                         : signature.address
                 ) as string
-
+                let destAddress = EVM_PARA_IDS.includes(dest) ? beneficiary : ss58.codec('kusama').encode(decodeHex(beneficiary))
+                
                 transfers.push({
                     id,
                     blockNumber: block.header.height,
@@ -124,6 +124,7 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
                     from: ss58.codec('kusama').encode(decodeHex(from)),
                     to: {
                         paraId: dest,
+                        address: destAddress,
                         id: beneficiary
                     },
                     assets: assets.map(a => ({
@@ -140,7 +141,7 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
     return transfers
 }
 
-function getBeneficiare(value: any) {
+function getBeneficiary(value: any) {
     switch (value.__kind) {
         case 'V0':
             return getAccountId(value.value)
@@ -208,7 +209,9 @@ interface XcmTransferData {
     from: string
     to: {
         paraId: number,
-        id: string
+        id: string,
+        address: string
+
     }
     assets: {
         token: string,
@@ -275,16 +278,6 @@ function getLimitedReservedTeleportAssets(ctx: Ctx, call: Call) {
     } else {
         throw new Error()
     }
-}
-
-function getAccount(m: Map<string, Account>, id: string): Account {
-    let acc = m.get(id)
-    if (acc == null) {
-        acc = new Account()
-        acc.id = id
-        m.set(id, acc)
-    }
-    return acc
 }
 
 export function getDestination(value: any) {
