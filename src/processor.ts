@@ -8,16 +8,17 @@ import assert from "assert"
 import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {Call} from "./types/support"
-import { s3 } from "./s3"
-import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { bigQuery } from "./big-query"
 
-const BUCKET = process.env.XCM_S3_BUCKET || `xcm-transfers` 
+
+assert(process.env.DATASET_ID, `Big Query Dataset ID must be set`)
+
+const DATASET_ID = process.env.DATASET_ID 
 
 const EVM_PARA_IDS = [2023]
 const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
 
 const processor = new SubstrateBatchProcessor()
-    .setBatchSize(500)
     .setDataSource({
         archive: lookupArchive("kusama", {release: "FireSquid"})
     })
@@ -56,42 +57,34 @@ processor.run(new TypeormDatabase(), async ctx => {
         return
     }
 
-    let firstBlock = ctx.blocks[0].header.height
-    let lastBlock = ctx.blocks[ctx.blocks.length - 1].header.height
-
-    // reserve exactly 15 digits for the block height for easy sorting
-    const pad = (n: number) => String(n).padStart(15, '0')
-    
-    let path = `${__dirname}/../assets/temp-${pad(firstBlock)}-${pad(lastBlock)}.csv`
-
-    let csvWriter = fs.createWriteStream(path, { flags: 'w', encoding: "utf-8" })
-    csvWriter.write(`extrinsicId,block,timestamp,txHash,from,to,destParaId,token,amount,fee\n`)
-
     let transfersData = getTransfers(ctx)
     const toKSMAmount = (planks: bigint | number, precision = 5) =>
         new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
 
 
-    const writeXCMTransferData = (t: XcmTransferData) => {
+    let batch: unknown[] = []
+    transfersData.map((t: XcmTransferData) => {
         for (let a of t.assets) {
-            csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},${t.extrinsicHash},`+
-                `${t.from},${t.to.address},${t.to.paraId},${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
+            batch.push({
+                extrinsicId: t.id,
+                blockNumber: t.blockNumber,
+                timestamp: t.timestamp.getTime()/1000,
+                txHash: t.extrinsicHash,
+                from: t.from,
+                to: t.to.address,
+                destParaId: t.to.paraId,
+                token: a.token,
+                amount: toKSMAmount(a.amount),
+                fee: toKSMAmount(t.fee ?? 0n, 10)
+            })
         }
-    }
+    }) 
+    
+    await bigQuery
+      .dataset(DATASET_ID)
+      .table(`kusama_transfers`)
+      .insert(batch);
 
-    for (let t of transfersData) {
-        writeXCMTransferData(t)
-    }
-
-    csvWriter.close(async () => {
-        await s3.send(new PutObjectCommand({
-            Key: `${pad(firstBlock)}-${pad(lastBlock)}_xcm_transfers.csv`,
-            Bucket: BUCKET,
-            Body: fs.createReadStream(path)
-        }))
-        fs.rmSync(path)
-        ctx.log.info(`Uploaded the block range [${firstBlock}, ${lastBlock}]`)
-    })
 })
 
 function getTransfers(ctx: Ctx): XcmTransferData[] {
