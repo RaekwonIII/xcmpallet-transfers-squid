@@ -8,16 +8,10 @@ import assert from "assert"
 import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {Call} from "./types/support"
+import { s3 } from "./s3"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
 
-const log = createLogger("sqd:processor")
-const CSV_PATH = `${__dirname}/../assets/xcm_transfers.csv`
-
-if (!fs.existsSync(CSV_PATH)) {
-    log.info(`Writing to ${CSV_PATH}`)
-    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'w', encoding: "utf-8" })
-    csvWriter.write(`extrinsicId,block,timestamp,txHash,from,to,destParaId,token,amount,fee\n`)
-    csvWriter.close()
-}
+const BUCKET = process.env.XCM_S3_BUCKET || `xcm-transfers` 
 
 const EVM_PARA_IDS = [2023]
 const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
@@ -58,8 +52,21 @@ type Ctx = BatchContext<Store, Item>
 
 
 processor.run(new TypeormDatabase(), async ctx => {
-    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'a', encoding: "utf-8" })
+    if (ctx.blocks.length === 0) {
+        return
+    }
+
+    let firstBlock = ctx.blocks[0].header.height
+    let lastBlock = ctx.blocks[ctx.blocks.length - 1].header.height
+
+    // reserve exactly 15 digits for the block height for easy sorting
+    const pad = (n: number) => String(n).padStart(15, '0')
     
+    let path = `${__dirname}/../assets/temp-${pad(firstBlock)}-${pad(lastBlock)}.csv`
+
+    let csvWriter = fs.createWriteStream(path, { flags: 'w', encoding: "utf-8" })
+    csvWriter.write(`extrinsicId,block,timestamp,txHash,from,to,destParaId,token,amount,fee\n`)
+
     let transfersData = getTransfers(ctx)
     const toKSMAmount = (planks: bigint | number, precision = 5) =>
         new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
@@ -76,7 +83,15 @@ processor.run(new TypeormDatabase(), async ctx => {
         writeXCMTransferData(t)
     }
 
-    csvWriter.close()
+    csvWriter.close(async () => {
+        await s3.send(new PutObjectCommand({
+            Key: `${pad(firstBlock)}-${pad(lastBlock)}_xcm_transfers.csv`,
+            Bucket: BUCKET,
+            Body: fs.createReadStream(path)
+        }))
+        fs.rmSync(path)
+        ctx.log.info(`Uploaded the block range [${firstBlock}, ${lastBlock}]`)
+    })
 })
 
 function getTransfers(ctx: Ctx): XcmTransferData[] {

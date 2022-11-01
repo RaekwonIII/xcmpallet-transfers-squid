@@ -8,6 +8,7 @@
     "query-node:start": "squid-graphql-server"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.200.0",
     "@subsquid/archive-registry": "1.0.14",
     "@subsquid/graphql-server": "3.2.0",
     "@subsquid/ss58": "0.1.2",
@@ -20,6 +21,7 @@
     "typeorm": "0.3.7"
   },
   "devDependencies": {
+    "@aws-sdk/types": "^3.200.0",
     "@subsquid/substrate-metadata-explorer": "1.0.4",
     "@subsquid/substrate-typegen": "1.2.0",
     "@subsquid/typeorm-codegen": "0.1.0",
