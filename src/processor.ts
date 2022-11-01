@@ -10,10 +10,7 @@ import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAsset
 import {Call} from "./types/support"
 import { bigQuery } from "./big-query"
 
-
-assert(process.env.DATASET_ID, `Big Query Dataset ID must be set`)
-
-const DATASET_ID = process.env.DATASET_ID 
+const DATASET_ID = process.env.DATASET_ID || `xcm_transfers`
 
 const EVM_PARA_IDS = [2023]
 const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
