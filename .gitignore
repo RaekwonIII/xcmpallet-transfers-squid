@@ -9,3 +9,4 @@
 
 /assets/*.csv
 .env
+/**/*key.json
