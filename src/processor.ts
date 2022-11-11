@@ -66,8 +66,9 @@ processor.run(new TypeormDatabase(), async ctx => {
 
     const writeXCMTransferData = (t: XcmTransferData) => {
         for (let a of t.assets) {
-            csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},${t.extrinsicHash},`+
-                `${t.from},${t.to.address},${t.to.paraId},${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
+            csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},`+
+              `${t.extrinsicHash},${t.from},${t.to.address},${t.to.paraId},`+
+              `${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
         }
     }
 
