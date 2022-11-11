@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {Chain, ChainContext, CallContext, Call, Result} from './support'
+import {Chain, ChainContext, CallContext, Call, Result, Option} from './support'
 import * as v9010 from './v9010'
 import * as v9030 from './v9030'
 import * as v9100 from './v9100'
@@ -146,7 +146,7 @@ export class XcmPalletReserveTransferAssetsCall {
    *    `ReserveAssetDeposit { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
    */
   get isV9030(): boolean {
-    return this._chain.getCallHash('XcmPallet.reserve_transfer_assets') === '774ab6f7f10a0a74a84b5705dc885bc7aeca80d91bde94a0e0faabe4d06ecdf1'
+    return this._chain.getCallHash('XcmPallet.reserve_transfer_assets') === '3c069703413ed53ed30061e5da3bc55ab8fa9032fc014ba18afc7afe32930ebd'
   }
 
   /**
@@ -185,7 +185,7 @@ export class XcmPalletReserveTransferAssetsCall {
    *    `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
    */
   get isV9100(): boolean {
-    return this._chain.getCallHash('XcmPallet.reserve_transfer_assets') === '1626a7b3bf7048e3565b3a4ce4400cb7f4a23aa1a7a30bb99a107cf0b4d75ffa'
+    return this._chain.getCallHash('XcmPallet.reserve_transfer_assets') === 'c4558a18f0400069c14aaa3575bad0bb84b99ac94f206e8ab02890276f174ff4'
   }
 
   /**
@@ -278,7 +278,7 @@ export class XcmPalletTeleportAssetsCall {
    *    `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
    */
   get isV9010(): boolean {
-    return this._chain.getCallHash('XcmPallet.teleport_assets') === '774ab6f7f10a0a74a84b5705dc885bc7aeca80d91bde94a0e0faabe4d06ecdf1'
+    return this._chain.getCallHash('XcmPallet.teleport_assets') === '3c069703413ed53ed30061e5da3bc55ab8fa9032fc014ba18afc7afe32930ebd'
   }
 
   /**
@@ -315,7 +315,7 @@ export class XcmPalletTeleportAssetsCall {
    *    `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
    */
   get isV9100(): boolean {
-    return this._chain.getCallHash('XcmPallet.teleport_assets') === '1626a7b3bf7048e3565b3a4ce4400cb7f4a23aa1a7a30bb99a107cf0b4d75ffa'
+    return this._chain.getCallHash('XcmPallet.teleport_assets') === 'c4558a18f0400069c14aaa3575bad0bb84b99ac94f206e8ab02890276f174ff4'
   }
 
   /**

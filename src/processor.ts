@@ -23,7 +23,6 @@ const EVM_PARA_IDS = [2023]
 const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
 
 const processor = new SubstrateBatchProcessor()
-    .setBatchSize(500)
     .setDataSource({
         archive: lookupArchive("kusama", {release: "FireSquid"})
     })
