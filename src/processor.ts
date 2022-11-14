@@ -2,13 +2,11 @@ import {lookupArchive} from "@subsquid/archive-registry"
 import * as ss58 from "@subsquid/ss58"
 import {BatchContext, BatchProcessorItem, decodeHex, SubstrateBatchProcessor, toHex} from "@subsquid/substrate-processor"
 import {Store, TypeormDatabase} from "@subsquid/typeorm-store"
-import {createLogger} from "@subsquid/logger"
 import {Big} from 'big.js'
 import assert from "assert"
-import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {Call} from "./types/support"
-import { bigQuery } from "./big-query"
+import {bigQuery} from "./big-query"
 
 const DATASET_ID = process.env.DATASET_ID || `xcm_transfers`
 
@@ -202,7 +200,7 @@ function getAssets(value: any): {id: null, amount: bigint}[] {
             })
         }
         default:
-            throw new Error()
+            throw new Error(`Unknown version: ${JSON.stringify(value)}`)
     }
 }
 
@@ -281,7 +279,7 @@ function getLimitedReservedTeleportAssets(ctx: Ctx, call: Call) {
     if (data.isV9122) {
         return data.asV9122
     } else {
-        throw new Error()
+        throw new Error(`Unknown metadata: ${JSON.stringify(data)}`)
     }
 }
 

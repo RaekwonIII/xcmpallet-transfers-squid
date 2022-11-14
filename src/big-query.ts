@@ -1,5 +1,6 @@
 import fs from 'fs'
 import {BigQuery} from '@google-cloud/bigquery'
+import assert from 'assert'
 
 
 const keyData = `
@@ -17,8 +18,17 @@ const keyData = `
   }  
 `
 
-fs.writeFileSync(`${__dirname}/../assets/private-key.json`, keyData)
-process.env.GOOGLE_APPLICATION_CREDENTIALS=`${__dirname}/../assets/private-key.json` 
+if (process.env.DEV !== 'true') {
+  assert(process.env.GOOGLE_PROJECT_ID, 'GOOGLE_PROJECT_ID must be set')
+  assert(process.env.GOOGLE_PRIVATE_KEY_ID, 'GOOGLE_PRIVATE_KEY_ID must be set')
+  assert(process.env.GOOGLE_PRIVATE_KEY, 'GOOGLE_PRIVATE_KEY must be set')
+  assert(process.env.GOOGLE_CLIENT_EMAIL, 'GOOGLE_CLIENT_EMAIL must be set')
+  assert(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID must be set')
+  assert(process.env.GOOGLE_CLIENT_X509_CERT_URL, 'GOOGLE_CLIENT_X509_CERT_URL must be set')
+  
+  fs.writeFileSync(`${__dirname}/../assets/private-key.json`, keyData)
+  process.env.GOOGLE_APPLICATION_CREDENTIALS=`${__dirname}/../assets/private-key.json` 
+}
 
 export const bigQuery = new BigQuery();
 

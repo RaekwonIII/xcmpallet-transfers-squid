@@ -8,5 +8,4 @@
 /.idea
 
 /assets/*.csv
-.env
 /**/*key.json
