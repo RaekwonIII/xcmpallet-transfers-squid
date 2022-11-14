@@ -1,9 +1,6 @@
 {
   "outDir": "src/types",
   "specVersions": "https://kusama.archive.subsquid.io/graphql",
-  "events": [
-    "Balances.Transfer"
-  ],
   "calls": [ 
     "XcmPallet.teleport_assets",
     "XcmPallet.reserve_transfer_assets",
