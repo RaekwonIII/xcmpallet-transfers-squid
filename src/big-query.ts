@@ -1,7 +1,6 @@
 import fs from 'fs'
 import {BigQuery} from '@google-cloud/bigquery'
 
-// TODO: create auth file from ENV variables
 
 const keyData = `
 {
