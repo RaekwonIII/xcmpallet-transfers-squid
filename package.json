@@ -21,9 +21,9 @@
     "big.js": "^6.2.1"
   },
   "devDependencies": {
-    "@subsquid/substrate-metadata-explorer": "1.0.4",
-    "@subsquid/substrate-typegen": "1.2.0",
-    "@subsquid/typeorm-codegen": "0.1.0",
+    "@subsquid/substrate-metadata-explorer": "1.0.8",
+    "@subsquid/typeorm-codegen": "0.2.3",
+    "@subsquid/substrate-typegen": "1.5.0",
     "@types/big.js": "^6.1.6",
     "@types/node": "16.11.47",
     "typescript": "4.7.4"
