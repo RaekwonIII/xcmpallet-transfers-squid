@@ -1,23 +1,16 @@
 import {lookupArchive} from "@subsquid/archive-registry"
 import * as ss58 from "@subsquid/ss58"
 import {BatchContext, BatchProcessorItem, decodeHex, SubstrateBatchProcessor, toHex} from "@subsquid/substrate-processor"
-import {Store, TypeormDatabase} from "@subsquid/typeorm-store"
 import {createLogger} from "@subsquid/logger"
 import {Big} from 'big.js'
 import assert from "assert"
 import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {Call} from "./types/support"
+import { CsvDatabase, Table, types, Store, List, Struct, TableRecord } from "@subsquid/duckdb-store"
 
 const log = createLogger("sqd:processor")
 const CSV_PATH = `${__dirname}/../assets/xcm_transfers.csv`
-
-if (!fs.existsSync(CSV_PATH)) {
-    log.info(`Writing to ${CSV_PATH}`)
-    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'w', encoding: "utf-8" })
-    csvWriter.write(`extrinsicId,block,timestamp,txHash,from,to,destParaId,token,amount,fee\n`)
-    csvWriter.close()
-}
 
 const EVM_PARA_IDS = [2023]
 const PLANKS = new Big(1_000_000_000_000n.toString()) // 10^12
@@ -52,35 +45,63 @@ const processor = new SubstrateBatchProcessor()
     })
 
 
-type Item = BatchProcessorItem<typeof processor>
-type Ctx = BatchContext<Store, Item>
+type Item = BatchProcessorItem<typeof processor>;
+type Ctx = BatchContext<Store, Item>;
 
+const XcmTransfers = new Table('transfers', {
+    id: types.string,
+    blockNumber: types.int,
+    timestamp: types.timestamp,
+    extrinsicHash: {type: types.string, nullable: true},
+    from: types.string,
+    to: Struct({
+        paraId: types.int,
+        id: types.string,
+        address: types.string
+    }),
+    assets: List(Struct({
+        token: types.string,
+        amount: types.string,
+    })),
+    fee: types.string,
+})
 
-processor.run(new TypeormDatabase(), async ctx => {
-    let csvWriter = fs.createWriteStream(CSV_PATH, { flags: 'a', encoding: "utf-8" })
-    
+log.info(`Writing to ${CSV_PATH}`)
+const db = new CsvDatabase([XcmTransfers], {
+    dest: CSV_PATH,
+    chunkSize: 10,
+    updateInterval: 100_000,
+})
+
+processor.run(db, async ctx => {    
     let transfersData = getTransfers(ctx)
+
+
+    // const writeXCMTransferData = (t: XcmTransferData) => {
+    //     for (let a of t.assets) {
+             
+    //         csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},`+
+    //           `${t.extrinsicHash},${t.from},${t.to.address},${t.to.paraId},`+
+    //           `${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
+    //     }
+    // }
+
+    // for (let t of transfersData) {
+    //     writeXCMTransferData(t)
+    // }
+    ctx.store.write(XcmTransfers, transfersData)
+
+})
+
+type Record = TableRecord<typeof XcmTransfers>
+
+function getTransfers(ctx: Ctx): Record[] {
+
     const toKSMAmount = (planks: bigint | number, precision = 5) =>
         new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
 
+    let transfers: Record[] = []
 
-    const writeXCMTransferData = (t: XcmTransferData) => {
-        for (let a of t.assets) {
-            csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},`+
-              `${t.extrinsicHash},${t.from},${t.to.address},${t.to.paraId},`+
-              `${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
-        }
-    }
-
-    for (let t of transfersData) {
-        writeXCMTransferData(t)
-    }
-
-    csvWriter.close()
-})
-
-function getTransfers(ctx: Ctx): XcmTransferData[] {
-    let transfers: XcmTransferData[] = []
     for (let block of ctx.blocks) {
         for (let item of block.items) {
             let data: XcmTransferEventData | undefined
@@ -129,9 +150,9 @@ function getTransfers(ctx: Ctx): XcmTransferData[] {
                     },
                     assets: assets.map(a => ({
                         token: 'KSM',
-                        amount: a.amount,
+                        amount: toKSMAmount(a.amount),
                     })),
-                    fee: fee || 0n
+                    fee: toKSMAmount(fee ?? 0n, 10)
                 })
             } catch (e) {
                 ctx.log.warn(`${e}\nextrinsic: ${item.extrinsic.hash}\nblock: ${block.header.height}`)
@@ -211,7 +232,6 @@ interface XcmTransferData {
         paraId: number,
         id: string,
         address: string
-
     }
     assets: {
         token: string,
