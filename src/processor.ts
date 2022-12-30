@@ -4,7 +4,6 @@ import {BatchContext, BatchProcessorItem, decodeHex, SubstrateBatchProcessor, to
 import {createLogger} from "@subsquid/logger"
 import {Big} from 'big.js'
 import assert from "assert"
-import * as fs from 'fs'
 import {XcmPalletLimitedReserveTransferAssetsCall, XcmPalletLimitedTeleportAssetsCall, XcmPalletReserveTransferAssetsCall, XcmPalletTeleportAssetsCall} from "./types/calls"
 import {Call} from "./types/support"
 import { CsvDatabase, Table, types, Store, List, Struct, TableRecord } from "@subsquid/duckdb-store"
@@ -76,29 +75,35 @@ const db = new CsvDatabase([XcmTransfers], {
 processor.run(db, async ctx => {    
     let transfersData = getTransfers(ctx)
 
+    await ctx.store.write(XcmTransfers, transfersData)
 
-    // const writeXCMTransferData = (t: XcmTransferData) => {
+    // alternatively, one could loop over transferData, and "explode" items, multiplying each row, by the number of `assets` contained in it:
+    // let explodedRows = myExplodedType[];
+    // for (let t of transfersData) {
     //     for (let a of t.assets) {
-             
-    //         csvWriter.write(`${t.id},${t.blockNumber},${t.timestamp.getTime()},`+
-    //           `${t.extrinsicHash},${t.from},${t.to.address},${t.to.paraId},`+
-    //           `${a.token},${toKSMAmount(a.amount)},${toKSMAmount(t.fee ?? 0n, 10)}\n`)
+    //         explodedRows.push({
+    //             t.id,
+    //             t.blockNumber,
+    //             t.timestamp.getTime(),
+    //             t.extrinsicHash,
+    //             t.from,
+    //             t.to.address,
+    //             t.to.paraId,
+    //             a?.token,
+    //             toKSMAmount(a?.amount || 0n),
+    //             toKSMAmount(t.fee ?? 0n, 10)
+    //         })
     //     }
     // }
-
-    // for (let t of transfersData) {
-    //     writeXCMTransferData(t)
-    // }
-    ctx.store.write(XcmTransfers, transfersData)
-
+    // await ctx.store.write(XcmTransfersExploded, explodedRows)
 })
 
 type Record = TableRecord<typeof XcmTransfers>
 
-function getTransfers(ctx: Ctx): Record[] {
+const toKSMAmount = (planks: bigint | number, precision = 5) =>
+    new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
 
-    const toKSMAmount = (planks: bigint | number, precision = 5) =>
-        new Big(planks.toString()).div(PLANKS).toFixed(precision).toString()
+function getTransfers(ctx: Ctx): Record[] {
 
     let transfers: Record[] = []
 
@@ -220,24 +225,6 @@ function getAssets(value: any): {id: null, amount: bigint}[] {
         default:
             throw new Error()
     }
-}
-
-interface XcmTransferData {
-    id: string
-    blockNumber: number
-    timestamp: Date
-    extrinsicHash?: string
-    from: string
-    to: {
-        paraId: number,
-        id: string,
-        address: string
-    }
-    assets: {
-        token: string,
-        amount: bigint
-    }[]
-    fee?: bigint
 }
 
 type XcmTransferEventData = ReturnType<typeof getXcmTeleportAssets>
